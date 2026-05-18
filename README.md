@@ -1,13 +1,20 @@
 # autocounter
 
-"Smart" counting selfbot for Discord.
+> [!WARNING]
+> Note that self-bots are against Discord's TOS, and using this project may result in account termination.
+>
+> This project is provided for educational purposes only. USE AT YOUR OWN RISK!
+
+A "smart" counting self-bot for Discord. Automatically responds to messages in a counting channel with the next correct count.
+
+Can work together with another instance!
 
 ## how?
 
-First, some definitions:
+First, a definition:
 - **counting message.** any message recognised by a counting bot; in practice, a message whose first word delimited by a space evaluates to a number AND has a reaction from a counting bot.
 
-The bot needs to do two things:
+To count, the bot needs to do two things:
 
 1. Respond to a count message with the correct next count,
 2. unless two (or more) users are already counting in a channel.
@@ -34,6 +41,8 @@ After the bot sends a message, it waits for a reaction from the counting bot to 
 2. set the environment variables `DISCORD_TOKEN` and `TARGET_CHANNEL_ID` with your user account token and ID of the target counting channel respectively.
 3. start the bot with ```python main.py```
 4. enjoy!
+
+Note that the script will exit if the bot sends a wrong count. If this happens, submit an issue with the log file.
 
 ## experiments
 
