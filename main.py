@@ -46,7 +46,7 @@ class MultiValueEnum( Enum ):
 class CountingBotReaction( MultiValueEnum ):
     CORRECT = ["✅", "☑️", "💯"]
     WRONG = ["❌"]
-    WARNING = ["⚠️"]
+    WARNING = ["⚠️", "⚠"] # Variation selector
 
 class AutocounterClient( discord.Client ):
     def __init__( self, token: str, channel_id: int, args: argparse.Namespace ):
