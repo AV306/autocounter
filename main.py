@@ -13,7 +13,6 @@ import simpleeval as seval
 import random as rng
 from typing import cast, Awaitable, Final, Union, Self, Optional
 import os
-from queue import Queue
 
 UserOrMember = Union[discord.User, discord.Member]
 
@@ -158,21 +157,22 @@ class AutocounterClient( discord.Client ):
             try:
                 sent_message = await asyncio.wait_for( self.channel.send( str( count ) ), self.timeout )
             except asyncio.TimeoutError:
-                logging.fatal( f"Timed out waiting for count to be sent: {count}" )
-                exit( EXIT_STATUS_TIMEOUT )
+                logging.error( f"Timed out waiting for count to be sent: {count}" )
+                #exit( EXIT_STATUS_TIMEOUT )
         
         # Validate
         try:
             result = await self.get_counting_bot_reaction_for_message( sent_message )
         except RuntimeError:
-            logging.fatal( f"Failed to get counting bot reaction to newly sent count: {count}" )
-            exit( EXIT_STATUS_TIMEOUT )
+            logging.error( f"Failed to get counting bot reaction to newly sent count: {count}" )
+            return
+            #exit( EXIT_STATUS_TIMEOUT )
 
         self.last_counted_by_user_id = cast( discord.User, self.user ).id
         
         if result == CountingBotReaction.WRONG:
-            logging.fatal( f"Sent {count} but it was incorrect!" )
-            exit( EXIT_STATUS_MISTAKE )
+            logging.error( f"Sent {count} but it was incorrect!" )
+            #exit( EXIT_STATUS_MISTAKE )
         elif result == CountingBotReaction.WARNING:
             logging.warning( f"Received warning for count: {count}" )
             # Do nothing, someone will pick it up for us
