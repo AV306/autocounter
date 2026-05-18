@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import discord
 from enum import Enum
+from dotenv import dotenv_values
 import inspect
 import logging
 import math
@@ -20,9 +21,6 @@ KNOWN_COUNTING_BOT_IDS = set( [
     510016054391734273
 ] )
 
-EXIT_STATUS_MISTAKE = 20
-EXIT_STATUS_TIMEOUT = 10
-EXIT_STATUS_ERROR_GENERIC = -1
 
 LOGFILE_NAME = f"autocounter_{datetime.now().isoformat().replace( ':', '-' )}.log"
 
@@ -158,7 +156,7 @@ class AutocounterClient( discord.Client ):
                 sent_message = await asyncio.wait_for( self.channel.send( str( count ) ), self.timeout )
             except asyncio.TimeoutError:
                 logging.error( f"Timed out waiting for count to be sent: {count}" )
-                #exit( EXIT_STATUS_TIMEOUT )
+                return
         
         # Validate
         try:
@@ -166,13 +164,14 @@ class AutocounterClient( discord.Client ):
         except RuntimeError:
             logging.error( f"Failed to get counting bot reaction to newly sent count: {count}" )
             return
-            #exit( EXIT_STATUS_TIMEOUT )
 
         self.last_counted_by_user_id = cast( discord.User, self.user ).id
         
         if result == CountingBotReaction.WRONG:
             logging.error( f"Sent {count} but it was incorrect!" )
-            #exit( EXIT_STATUS_MISTAKE )
+            # This should never happen. Exit to signal that something is seriously wrong
+            # and we should probably take a look at the code.
+            exit( -1 ) 
         elif result == CountingBotReaction.WARNING:
             logging.warning( f"Received warning for count: {count}" )
             # Do nothing, someone will pick it up for us
@@ -238,11 +237,11 @@ class AutocounterClient( discord.Client ):
                 result_task: asyncio.Task[CountingBotReaction] = group.create_task( self.get_counting_bot_reaction_for_message( message ) )
                 count_task: asyncio.Task[int] = group.create_task( self.get_count_from_message_content( message.content ) )
         except ExceptionGroup as group:
-            if RuntimeError in group.exceptions:
+            if group.subgroup( RuntimeError ):
                 # Raised from get_counting_bot_reaction task
                 logging.warning( f"Failed to get counting bot reaction for message, skipping it: {message.author.name}: {message.content}" )
-            # Raised from get_count task
-            elif ValueError in group.exceptions:
+            elif group.subgroup( ValueError ):
+                # Raised from get_count task
                 logging.warning( "Message does not contain a valid count, skipping" )
             else:
                 logging.warning( f"Unexpected exception type raised: {group.exceptions}" )
@@ -290,8 +289,10 @@ if __name__ == "__main__":
 
     logging.info( f"Running with flags: {args}" )
 
-    token = os.getenv( "DISCORD_TOKEN" )
-    channel_id = os.getenv( "COUNTING_CHANNEL_ID" )
+    config = dotenv_values()
+
+    token = os.getenv( "DISCORD_TOKEN", config["DISCORD_TOKEN"] )
+    channel_id = os.getenv( "COUNTING_CHANNEL_ID", config["COUNTING_CHANNEL_ID"] )
 
     if not token:
         raise RuntimeError( "DISCORD_TOKEN environment variable is not set" )
