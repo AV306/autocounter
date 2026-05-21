@@ -75,6 +75,21 @@ class AutocounterClient( discord.Client ):
         self.current_count_task: Optional[asyncio.Task[None]] = None
 
 #region Utilities
+    def format_count(self, count: int) -> str:
+        if not self.send_math:
+            return str(count)
+
+        parts = []
+
+        while count >= 67:
+            parts.append("67")
+            count -= 67
+
+        if count > 0:
+            parts.append(str(count))
+
+        return "+".join(parts)
+    
     def get_random_delay( self, delay_time: Optional[float]=None, sd: Optional[float]=None ) -> float:
         if delay_time is None:
             # Use the response delay as the default
@@ -162,7 +177,8 @@ class AutocounterClient( discord.Client ):
         async with self.channel.typing():
             await asyncio.sleep( typing_time )
             try:
-                sent_message = await asyncio.wait_for( self.channel.send( str( count ) ), self.timeout )
+                formatted = self.format_count(count)
+                sent_message = await asyncio.wait_for(self.channel.send(formatted),self.timeout)
             except asyncio.TimeoutError:
                 logging.error( f"Timed out waiting for count to be sent: {count}" )
                 return
