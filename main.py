@@ -1,8 +1,6 @@
 import argparse
 import ast
 import asyncio
-from collections import namedtuple
-from dataclasses import dataclass, field
 from datetime import datetime
 import discord
 from enum import Enum
@@ -54,11 +52,12 @@ class AutocounterClient( discord.Client ):
         self.token: Final[str] = token
         self.channel_id: Final[int] = channel_id
         # self.channel can only be set when ready
-        self.mean_cooldown: Final[float] = args.mean_cooldown
-        #self.typing_cooldown: Final[float] = 10
-        self.cooldown_sd: Final[float] = args.cooldown_sd
+        self.delay_time_mean: Final[float] = args.delay_time_mean
+        self.delay_time_sd: Final[float] = args.delay_time_sd
+        self.typing_time_mean: Final[float] = args.typing_time_mean
+        self.typing_time_sd: Final[float] = args.typing_time_sd
         self.send_math: Final[bool] = args.send_math
-        self.do_fake_counts: Final[bool] = args.do_fake_counts
+        #self.do_fake_counts: Final[bool] = args.do_fake_counts
         self.timeout: Final[float] = args.timeout
 
         # Utilities
@@ -68,6 +67,7 @@ class AutocounterClient( discord.Client ):
         # (countingbot doesn't support the arc* trigo ops, for example)
         # FIXME: security risk?
         self.simple_eval.functions.update( {name: obj for name, obj in inspect.getmembers( math, inspect.isbuiltin )} )
+        self.simple_eval.operators[ast.BitXor] = seval.safe_power
 
         # State
         self.last_count: int = 0
@@ -75,11 +75,13 @@ class AutocounterClient( discord.Client ):
         self.current_count_task: Optional[asyncio.Task[None]] = None
 
 #region Utilities
-    def get_cooldown( self, cooldown: Optional[float]=None ) -> float:
-        if cooldown is None:
-            cooldown = self.mean_cooldown
-        #return cooldown + self.random.random() * self.max_jitter
-        return max( 0.01, self.random.gauss( cooldown, self.cooldown_sd ) )
+    def get_random_delay( self, delay_time: Optional[float]=None, sd: Optional[float]=None ) -> float:
+        if delay_time is None:
+            # Use the response delay as the default
+            delay_time = self.delay_time_mean
+        if sd is None:
+            sd = self.delay_time_sd
+        return max( 0.01, self.random.gauss( delay_time, sd ) )
 
     async def get_count_from_message_content( self, content: str ) -> int:
         r"""
@@ -144,14 +146,21 @@ class AutocounterClient( discord.Client ):
 #endregion
 
 #region Message sending stuff
-    async def send_count_after_delay( self, count: int, delay: Optional[float]=None ):
+    async def send_count_after_delay( self, count: int ):
         r"""
-        Send the specified count after the given delay, and then check if it was correct.
+        Send the specified count, and then check if it was correct.
+
+        Waits for {self.delay_time_mean} s (avg) before sending a "typing" status,
+        and then "types" for {self.typing_time_mean} s (avg) before sending the count.
         """
-        cooldown = self.get_cooldown( delay )
-        logging.info( f"Waiting for {cooldown} s" )
+        delay_time = self.get_random_delay( self.delay_time_mean, self.delay_time_sd )
+        typing_time = self.get_random_delay( self.typing_time_mean, self.typing_time_sd )
+        logging.debug( f"Delaying for {delay_time} s" )
+        await asyncio.sleep( delay_time )
+
+        logging.debug( f"Typing for {typing_time} s" )
         async with self.channel.typing():
-            await asyncio.sleep( cooldown )
+            await asyncio.sleep( typing_time )
             try:
                 sent_message = await asyncio.wait_for( self.channel.send( str( count ) ), self.timeout )
             except asyncio.TimeoutError:
@@ -162,7 +171,7 @@ class AutocounterClient( discord.Client ):
         try:
             result = await self.get_counting_bot_reaction_for_message( sent_message )
         except RuntimeError:
-            logging.error( f"Failed to get counting bot reaction to newly sent count: {count}" )
+            logging.error( f"Failed to get counting bot reaction to newly sent count, skipping verification: {count}" )
             return
 
         self.last_counted_by_user_id = cast( discord.User, self.user ).id
@@ -176,20 +185,20 @@ class AutocounterClient( discord.Client ):
             logging.warning( f"Received warning for count: {count}" )
             # Do nothing, someone will pick it up for us
         else:
-            logging.info( "Count sent and verified" )
+            logging.debug( "Count sent and verified" )
             logging.debug( f"incrementing self.last_count: was {self.last_count}, is now {self.last_count + 1}" )
             self.last_count += 1
 
-    async def schedule_count_task( self, count: int, delay: Optional[float]=None ):
+    async def schedule_count_task( self, count: int ):
         r"""
-        Schedule the specified count to be sent after the specified delay.
+        Schedule the specified count to be sent after a delay.
         Does nothing if this bot was the last one to count.
         """
         if self.last_counted_by_user_id == cast( discord.User, self.user ).id:
-            logging.warning( f"Attempted to schedule new delayed count task when last counted by us: {count=}, {delay=}" )
+            logging.warning( f"Attempted to schedule new delayed count task when last counted by us: {count=}" )
         if count > self.last_count:
-            self.current_count_task = asyncio.create_task( self.send_count_after_delay( count, delay ) )
-            logging.info( f"Scheduled new delayed count task with args: {count=}, {delay=}" )
+            self.current_count_task = asyncio.create_task( self.send_count_after_delay( count) )
+            logging.debug( f"Scheduled new delayed count task with args: {count=}" )
     
     async def cancel_pending_count_task( self ):
         if self.current_count_task and not self.current_count_task.done():
@@ -250,7 +259,7 @@ class AutocounterClient( discord.Client ):
         # Count is correct
         result = result_task.result()
         count = count_task.result()
-        logging.info( f"Received valid count message: {count} ({result})" )
+        logging.debug( f"Received valid count message: {count} ({result})" )
         await self.cancel_pending_count_task()
         
         # Decide how to respond, based on correctness of previous count
@@ -261,7 +270,7 @@ class AutocounterClient( discord.Client ):
             await self.schedule_count_task( 1 )
         elif result == CountingBotReaction.WARNING:
             # Ignore
-            logging.info( "No action" )
+            logging.debug( "No action" )
             pass
         else: # result == CountingBotReaction.CORRECT
             # Send the next number
@@ -276,13 +285,15 @@ class AutocounterClient( discord.Client ):
 
 #region Main
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser( description="Autocounter: automatic counting self-bot" )
+    parser = argparse.ArgumentParser( description="Autocounter: Discord automatic counting self-bot" )
     #parser.add_argument( "token", help="Discord user token" )
     #parser.add_argument( "channel", help="Channel ID to monitor" )
-    parser.add_argument( "--cooldown", "-c", dest="mean_cooldown", help="Mean cooldown time before responding to a count in seconds", type=float, default=1.0 )
-    parser.add_argument( "--cooldown-jitter", "-j", dest="cooldown_sd", help="Standard deviation of cooldown time", type=float, default=0.5 )
-    parser.add_argument( "--continue-after-mistake", "-k", help="Continue counting even after a mistake", action="store_true" )
-    parser.add_argument( "--do-fake-counts", "-f", help="Send fake counts instead of the correct next number (aka jerk mode)", action="store_true" )
+    parser.add_argument( "--delay-time", dest="delay_time_mean", help="Mean time before the bot begins responding to a count in seconds", type=float, default=0.5 )
+    parser.add_argument( "--delay-time-sd", dest="delay_time_sd", help="Standard deviation of response delay time", type=float, default=0.5 )
+    parser.add_argument( "--typing-time", dest="typing_time_mean", help="Mean time for the bot to 'type' a count in seconds", type=float, default=0.2 )
+    parser.add_argument( "--typing-time-sd", dest="typing_time_sd", help="Standard deviation of 'typing' time", type=float, default=0.1 )
+    parser.add_argument( "--continue-after-mistake", "-k", help="Continue counting even after the bot makes a mistake", action="store_true" )
+    #parser.add_argument( "--do-fake-counts", "-f", help="Send fake counts instead of the correct next number (aka jerk mode)", action="store_true" )
     parser.add_argument( "--send-math", "-m", help="Use mathematical operations for counting", action="store_true" )
     parser.add_argument( "--timeout", "-t", help="Timeout for various operations", type=float, default=10 )
     args = parser.parse_args()
@@ -291,8 +302,8 @@ if __name__ == "__main__":
 
     config = dotenv_values()
 
-    token = os.getenv( "DISCORD_TOKEN", config["DISCORD_TOKEN"] )
-    channel_id = os.getenv( "COUNTING_CHANNEL_ID", config["COUNTING_CHANNEL_ID"] )
+    token = config.get( "DISCORD_TOKEN", os.getenv( "DISCORD_TOKEN" ) )
+    channel_id = config.get( "COUNTING_CHANNEL_ID", os.getenv( "COUNTING_CHANNEL_ID" ) )
 
     if not token:
         raise RuntimeError( "DISCORD_TOKEN environment variable is not set" )
