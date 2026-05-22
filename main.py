@@ -8,9 +8,10 @@ from dotenv import dotenv_values
 import inspect
 import logging
 import math
+from math_handlers import MATH_HANDLERS
 import simpleeval as seval
 import random as rng
-from typing import cast, Awaitable, Final, Union, Self, Optional
+from typing import cast, Callable, Final, Union, Self, Optional
 import os
 
 UserOrMember = Union[discord.User, discord.Member]
@@ -56,7 +57,7 @@ class AutocounterClient( discord.Client ):
         self.delay_time_sd: Final[float] = args.delay_time_sd
         self.typing_time_mean: Final[float] = args.typing_time_mean
         self.typing_time_sd: Final[float] = args.typing_time_sd
-        self.send_math: Final[bool] = args.send_math
+        self.math_handler: Final[Optional[Callable[[int], str]]] = MATH_HANDLERS.get( args.math_mode )
         #self.do_fake_counts: Final[bool] = args.do_fake_counts
         self.timeout: Final[float] = args.timeout
 
@@ -75,21 +76,6 @@ class AutocounterClient( discord.Client ):
         self.current_count_task: Optional[asyncio.Task[None]] = None
 
 #region Utilities
-    def format_count(self, count: int) -> str:
-        if not self.send_math:
-            return str(count)
-
-        parts = []
-
-        while count >= 67:
-            parts.append("67")
-            count -= 67
-
-        if count > 0:
-            parts.append(str(count))
-
-        return "+".join(parts)
-    
     def get_random_delay( self, delay_time: Optional[float]=None, sd: Optional[float]=None ) -> float:
         if delay_time is None:
             # Use the response delay as the default
@@ -176,9 +162,12 @@ class AutocounterClient( discord.Client ):
         logging.debug( f"Typing for {typing_time} s" )
         async with self.channel.typing():
             await asyncio.sleep( typing_time )
+            if self.math_handler is None:
+                message = str( count )
+            else:
+                message = self.math_handler( count )
             try:
-                formatted = self.format_count(count)
-                sent_message = await asyncio.wait_for(self.channel.send(formatted),self.timeout)
+                sent_message = await asyncio.wait_for( self.channel.send( message ), self.timeout )
             except asyncio.TimeoutError:
                 logging.error( f"Timed out waiting for count to be sent: {count}" )
                 return
@@ -310,7 +299,7 @@ if __name__ == "__main__":
     parser.add_argument( "--typing-time-sd", dest="typing_time_sd", help="Standard deviation of 'typing' time", type=float, default=0.1 )
     parser.add_argument( "--continue-after-mistake", "-k", help="Continue counting even after the bot makes a mistake", action="store_true" )
     #parser.add_argument( "--do-fake-counts", "-f", help="Send fake counts instead of the correct next number (aka jerk mode)", action="store_true" )
-    parser.add_argument( "--send-math", "-m", help="Use mathematical operations for counting", action="store_true" )
+    parser.add_argument( "--math-mode", "-m", help="Use mathematical operations for counting", choices=["none", "sixseven"], default="none" )
     parser.add_argument( "--timeout", "-t", help="Timeout for various operations", type=float, default=10 )
     args = parser.parse_args()
 
