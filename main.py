@@ -58,6 +58,7 @@ class AutocounterClient( discord.Client ):
         self.typing_time_mean: Final[float] = args.typing_time_mean
         self.typing_time_sd: Final[float] = args.typing_time_sd
         self.math_handler: Final[Optional[Callable[[int], str]]] = MATH_HANDLERS.get( args.math_mode )
+        self.math_probability: Final[float] = args.math_probability
         #self.do_fake_counts: Final[bool] = args.do_fake_counts
         self.timeout: Final[float] = args.timeout
 
@@ -162,10 +163,10 @@ class AutocounterClient( discord.Client ):
         logging.debug( f"Typing for {typing_time} s" )
         async with self.channel.typing():
             await asyncio.sleep( typing_time )
-            if self.math_handler is None:
-                message = str( count )
-            else:
+            if self.math_handler is not None and self.random.random() < self.math_probability:
                 message = self.math_handler( count )
+            else:
+                message = str( count )
             try:
                 sent_message = await asyncio.wait_for( self.channel.send( message ), self.timeout )
             except asyncio.TimeoutError:
@@ -302,6 +303,7 @@ if __name__ == "__main__":
     parser.add_argument( "--continue-after-mistake", "-k", help="Continue counting even after the bot makes a mistake", action="store_true" )
     #parser.add_argument( "--do-fake-counts", "-f", help="Send fake counts instead of the correct next number (aka jerk mode)", action="store_true" )
     parser.add_argument( "--math-mode", "-m", help="Use mathematical operations for counting", choices=["none", "sixseven"], default="none" )
+    parser.add_argument( "--math-probability", help="Probability of sending a math count", type=float, default=1.0 )
     parser.add_argument( "--timeout", "-t", help="Timeout for various operations", type=float, default=10 )
     args = parser.parse_args()
 
