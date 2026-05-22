@@ -237,7 +237,7 @@ class AutocounterClient( discord.Client ):
         logging.debug( f"({channel.guild.name}) {user.name} is typing" )
         if channel == self.channel:
             if user.id != self.user.id and user.id != self.last_counted_by_user_id:
-                logging.warning( f"{user.name} (not us or last counter) began typing in target channel" )
+                logging.debug( f"{user.name} (not us or last counter) began typing in target channel" )
                 # Cancel pending count task; will resume when a new count message comes in
                 # Ignores the user who last counted, since that event is likely
                 # them preparing the next count and won't lead to a new count message
