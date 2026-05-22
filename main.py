@@ -32,6 +32,11 @@ logging.basicConfig(
     ]
 )
 
+async def async_sleep( t ):
+    """asyncio.sleep(), but resumes immediately if t == 0"""
+    if t != 0:
+        await asyncio.sleep( t )
+
 class MultiValueEnum( Enum ):
     @classmethod
     def from_str( cls, value: str ) -> Self:
@@ -158,11 +163,11 @@ class AutocounterClient( discord.Client ):
         delay_time = self.get_random_delay( self.delay_time_mean, self.delay_time_sd )
         typing_time = self.get_random_delay( self.typing_time_mean, self.typing_time_sd )
         logging.debug( f"Delaying for {delay_time} s" )
-        await asyncio.sleep( delay_time )
+        await async_sleep( delay_time )
 
         logging.debug( f"Typing for {typing_time} s" )
         async with self.channel.typing():
-            await asyncio.sleep( typing_time )
+            await async_sleep( typing_time )
             if self.math_handler is not None and self.random.random() < self.math_probability:
                 message = self.math_handler( count )
             else:
@@ -232,7 +237,7 @@ class AutocounterClient( discord.Client ):
         logging.debug( f"({channel.guild.name}) {user.name} is typing" )
         if channel == self.channel:
             if user.id != self.user.id and user.id != self.last_counted_by_user_id:
-                logging.debug( "User (not us or last counter) began typing in target channel" )
+                logging.warning( f"{user.name} (not us or last counter) began typing in target channel" )
                 # Cancel pending count task; will resume when a new count message comes in
                 # Ignores the user who last counted, since that event is likely
                 # them preparing the next count and won't lead to a new count message
