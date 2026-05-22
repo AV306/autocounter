@@ -223,6 +223,7 @@ class AutocounterClient( discord.Client ):
         self.guild = self.channel.guild
         await self.guild.subscribe( typing=True, member_updates=False, threads=False )
         #logging.debug( f"Subscribed to guild {self.guild.id} ({self.guild.name})" )
+        logging.info( f"Logged in as {self.user.name}" )
         logging.info( f"Target channel: {self.channel.name} in {self.guild.name}" )
         logging.info( "Autocounter ready!" )
 
@@ -293,6 +294,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser( description="Autocounter: Discord automatic counting self-bot" )
     #parser.add_argument( "token", help="Discord user token" )
     #parser.add_argument( "channel", help="Channel ID to monitor" )
+    parser.add_argument( "--env-file", help="Name of the .env file to read; default '.env'", default=".env" )
     parser.add_argument( "--delay-time", dest="delay_time_mean", help="Mean time before the bot begins responding to a count in seconds", type=float, default=0.5 )
     parser.add_argument( "--delay-time-sd", dest="delay_time_sd", help="Standard deviation of response delay time", type=float, default=0.5 )
     parser.add_argument( "--typing-time", dest="typing_time_mean", help="Mean time for the bot to 'type' a count in seconds", type=float, default=0.2 )
@@ -305,7 +307,7 @@ if __name__ == "__main__":
 
     logging.info( f"Running with flags: {args}" )
 
-    config = dotenv_values()
+    config = dotenv_values( args.env_file )
 
     token = config.get( "DISCORD_TOKEN", os.getenv( "DISCORD_TOKEN" ) )
     channel_id = config.get( "COUNTING_CHANNEL_ID", os.getenv( "COUNTING_CHANNEL_ID" ) )
