@@ -9,6 +9,16 @@ A "smart" counting self-bot for Discord. Automatically responds to messages in a
 
 Can work together with another instance!
 
+## usage
+
+1. install dependencies with ```pip install -r requirements.txt```. (a venv is recommended)
+2. create a `.env` file with `DISCORD_TOKEN` and `TARGET_CHANNEL_ID` set with your user account token and ID of the target counting channel respectively. (setting the shell environment variables also works, but isn't recommended as it opens your Discord token to being stolen.)
+3. start the bot with ```python main.py```.
+4. send a count in the channel to start the bot off.
+5. enjoy!
+
+Note that the script will exit if the bot sends a wrong count. This shouldn't happen; if it does, submit an issue with the log file.
+
 ## how?
 
 First, a definition:
@@ -34,15 +44,6 @@ The bot also sends a "typing" status to signal to other users (or bots) that it 
 When a user, who is not the user who last sent a count message, begins typing in the channel (`on_typing`), the bot cancels any scheduled "send count" task to ensure it won't try to count at the same time as another user. The "not the user who last counted" check allows the user who last counted to prepare the next count in their message box without stalling the bot.
 
 After the bot sends a message, it waits for a reaction from the counting bot to make sure that it did not make a mistake. If it receives a "wrong" reaction, it exits. If it times out, it does nothing in the hopes that a real user will handle the situation properly.
-
-## usage
-
-1. install dependencies with ```pip install -r requirements.txt```. (a venv is recommended)
-2. set the environment variables `DISCORD_TOKEN` and `TARGET_CHANNEL_ID` with your user account token and ID of the target counting channel respectively.
-3. start the bot with ```python main.py```
-4. enjoy!
-
-Note that the script will exit if the bot sends a wrong count. If this happens, submit an issue with the log file.
 
 ## experiments
 
