@@ -12,7 +12,7 @@ Can work together with another instance!
 ## usage
 
 1. install dependencies with ```pip install -r requirements.txt```. (a venv is recommended)
-2. create a `.env` file with `DISCORD_TOKEN` and `TARGET_CHANNEL_ID` set with your user account token and ID of the target counting channel respectively. (setting the shell environment variables also works, but isn't recommended as it opens your Discord token to being stolen.)
+2. create a `.env` file with `DISCORD_TOKEN` and `TARGET_CHANNEL_ID` set with your user account token and ID of the target counting channel respectively. (setting the shell environment variables also works, but isn't recommended as it opens your Discord token to being stolen. <sub>Granted, if someone had a shell on your machine they could just read the .env file... Will think of a solution soon</sub>)
 3. start the bot with ```python main.py```.
 4. send a count in the channel to start the bot off.
 5. enjoy!
